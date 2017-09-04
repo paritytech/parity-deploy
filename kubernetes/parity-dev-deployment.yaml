@@ -1,0 +1,34 @@
+apiVersion: extensions/v1beta1
+kind: Deployment
+metadata:
+  creationTimestamp: null
+  labels:
+    io.kompose.service: parity-dev
+  name: parity-dev
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      creationTimestamp: null
+      labels:
+        io.kompose.service: parity-dev
+    spec:
+      containers:
+      - args:
+        - --config
+        - dev-insecure
+        - --ui-interface
+        - "0.0.0.0"
+        - --fast-unlock
+        image: parity/parity:nightly
+        imagePullPolicy: Always
+        name: parity-dev
+        ports:
+        - containerPort: 8180
+        - containerPort: 8545
+        - containerPort: 30303
+        resources: {}
+      restartPolicy: Always
+status: {}
