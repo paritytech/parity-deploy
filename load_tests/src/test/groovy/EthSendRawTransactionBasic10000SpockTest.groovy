@@ -1,6 +1,6 @@
+import parity.JsonRpcClient
 import groovy.json.JsonSlurper
 import groovyx.gpars.ParallelEnhancer
-import groovyx.net.http.HTTPBuilder
 import org.joda.time.DateTime
 import org.joda.time.Period
 import org.joda.time.PeriodType
@@ -12,8 +12,6 @@ import spock.lang.Unroll
 import java.util.concurrent.ConcurrentHashMap
 
 import static groovyx.gpars.GParsPool.withPool
-import static groovyx.net.http.ContentType.JSON
-import static groovyx.net.http.Method.POST
 
 class EthSendRawTransactionBasic10000SpockTest extends Specification {
 
@@ -138,20 +136,3 @@ class EthSendRawTransactionBasic10000SpockTest extends Specification {
     }
 }
 
-class JsonRpcClient extends HTTPBuilder {
-    JsonRpcClient(String uri) {
-        super(uri)
-    }
-
-    def methodMissing(String name, args) {
-        def result
-        request(POST, JSON) { req ->
-            body = [
-                    "jsonrpc": "2.0",
-                    "method" : name,
-                    "params" : args, "id": 1]
-            response.success = { resp, json -> result = json }
-        }
-        return result
-    }
-}

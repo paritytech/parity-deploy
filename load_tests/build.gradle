@@ -1,13 +1,19 @@
 plugins {
     id "de.qaware.cloud.deployer" version "0.9.2"
+    id 'com.avast.gradle.docker-compose' version "0.4.5"
 }
 
 apply plugin: 'java'
 apply plugin: 'groovy'
+apply plugin: 'docker-compose'
 
 
 repositories {
+    mavenLocal()
     jcenter()
+    flatDir {
+        dirs 'lib'
+    }
 }
 
 dependencies {
@@ -18,22 +24,81 @@ dependencies {
         seleniumSupport = '2.52.0'
         spockCore = '1.1-groovy-2.4'
         webdriverHtmlunit = '0.9.7376'
+        grizzlyTyrus = '1.13.1'
     }
 
-    compile (
-            'org.slf4j:slf4j-api:1.7.21',
+    // https://mvnrepository.com/artifact/io.fabric8/kubernetes-client
+    compile group: 'io.fabric8', name: 'kubernetes-client', version: '2.6.3'
+    compile(
             "org.codehaus.groovy:groovy-all:$groovyAll",
-            "org.codehaus.gpars:gpars:1.2.1"
+            files('lib/groovychart-0.1-SNAPSHOT.jar'),
+//            files('lib/kubernetes-client-2.6-SNAPSHOT.jar'),
+            'jfree:jfreechart:1.0.12',
+            'org.jfree:jcommon:1.0.23',
+            'org.yaml:snakeyaml:1.18',
+            'com.moandjiezana.toml:toml4j:0.7.2',
     )
 
     testCompile(
+            'org.apache.ivy:ivy:2.4.0',
+            'org.slf4j:slf4j-api:1.7.21',
+            'org.ini4j:ini4j:0.5.4',
+            "org.codehaus.gpars:gpars:1.2.1",
+            'com.github.stephenc.high-scale-lib:high-scale-lib:1.1.4',
             'joda-time:joda-time:2.3',
             'org.codehaus.groovy.modules.http-builder:http-builder:0.7',
             "org.hamcrest:hamcrest-library:$hamcrest",
             'javax.servlet:javax.servlet-api:4.0.0-b07',
             'javax.ws.rs:javax.ws.rs-api:2.1-m09',
             'junit:junit:4.12',
+            "org.glassfish.tyrus:tyrus-server:$grizzlyTyrus",
+            "org.glassfish.tyrus:tyrus-client:$grizzlyTyrus",
+            "org.glassfish.tyrus:tyrus-container-grizzly:1.2.1",
             "org.spockframework:spock-core:$spockCore"
     )
+
 }
 
+task runScript (dependsOn: 'classes', type: JavaExec) {
+    main = 'deployment'
+    classpath = sourceSets.main.runtimeClasspath
+    args 'src/deployment/chain/spec.json', 'src/deployment/docker-compose.yml'
+}
+
+//dockerCompose.isRequiredBy(test) // hooks 'dependsOn composeUp' and 'finalizedBy composeDown'
+
+dockerCompose {
+    // useComposeFiles = ['docker-compose.yml', 'docker-compose.prod.yml'] // like 'docker-compose -f <file>'
+    // captureContainersOutput = true // prints output of all containers to Gradle output - very useful for debugging
+    // captureContainersOutputToFile = '/path/to/logFile' // sends output of all containers to a log file
+    // stopContainers = false // doesn't call `docker-compose down` - useful for debugging
+    // removeContainers = false
+    // removeImages = "None" // Other accepted values are: "All" and "Local"
+    // removeOrphans = false // Removes containers for services not defined in the Compose file
+    // removeVolumes = false
+    // projectName = 'my-project' // allow to set custom docker-compose project name (defaults to directory name)
+    // executable = '/path/to/docker-compose' // allow to set the path of the docker-compose executable (usefull if not present in PATH)
+    // dockerExecutable = '/path/to/docker' // allow to set the path of the docker executable (usefull if not present in PATH)
+    // dockerComposeWorkingDirectory = '/path/where/docker-compose/is/invoked/from'
+    // dockerComposeStopTimeout = java.time.Duration.ofSeconds(20) // time before docker-compose sends SIGTERM to the running containers after the composeDown task has been started
+    // environment.put 'BACKEND_ADDRESS', '192.168.1.100' // Pass environment variable to 'docker-compose' for substitution in compose file
+    // scale = [${serviceName1}: 5, ${serviceName2}: 2] // Pass docker compose --scale option like 'docker-compose up --scale serviceName1=5 --scale serviceName2=2'
+}
+
+//test.doFirst {
+//    // exposes "${serviceName}_HOST" and "${serviceName}_TCP_${exposedPort}" environment variables
+//    // for example exposes "WEB_HOST" and "WEB_TCP_80" environment variables for service named `web` with exposed port `80`
+//    // if service is scaled using scale option, environment variables will be exposed for each service instance like "WEB_1_HOST", "WEB_1_TCP_80", "WEB_2_HOST", "WEB_2_TCP_80" and so on
+//    dockerCompose.exposeAsEnvironment(test)
+//    // exposes "${serviceName}.host" and "${serviceName}.tcp.${exposedPort}" system properties
+//    // for example exposes "web.host" and "web.tcp.80" system properties for service named `web` with exposed port `80`
+//    // if service is scaled using scale option, environment variables will be exposed for each service instance like "web_1.host", "web_1.tcp.80", "web_2.host", "web_2.tcp.80" and so on
+//    dockerCompose.exposeAsSystemProperties(test)
+//    // get information about container of service `web` (declared in docker-compose.yml)
+//    def webInfo = dockerCompose.servicesInfos.web.firstInstance
+//    // in case scale option is used, dockerCompose.servicesInfos.containerInfos will contain information about all running containers of service. Particular container can be retreived either by iterating the values of containerInfos map (key is service instance name, for example 'web_1')
+//    def webInfo = dockerCompose.servicesInfos.web.'web_1'
+//    // pass host and exposed TCP port 80 as custom-named Java System properties
+//    systemProperty 'myweb.host', webInfo.host
+//    systemProperty 'myweb.port', webInfo.ports[80]
+//}
