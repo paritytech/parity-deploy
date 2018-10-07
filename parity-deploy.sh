@@ -1,5 +1,25 @@
 #!/bin/bash
 # Copyright 2017 Parity Technologies (UK) Ltd.
+
+sed() {
+  if [ "$(uname)" = "Darwin" ] ; then
+    gsed "$@"
+  else
+    command sed "$@"
+  fi
+}
+
+mktemp() {
+  if [ "$(uname)" = "Darwin" ]; then
+    if [ "$1" = "-p" ]; then
+      shift;
+    fi
+    command mktemp $1/$2
+  else
+    command mktemp $@
+  fi
+}
+
 CHAIN_NAME="parity"
 CHAIN_NODES="1"
 CLIENT="0"
@@ -27,12 +47,14 @@ NOTE:
 check_packages() {
 
 if [ $(grep -i debian /etc/*-release | wc -l) -gt 0 ] ; then
-   if [ ! -f /usr/bin/docker ] ; then
-      sudo apt-get -y install docker.io python-pip
+   if [ ! -f /usr/local/bin/docker ] ; then
+      #sudo apt-get -y install docker.io python-pip
+      brew install docker.io python-pip
    fi
 
    if [ ! -f /usr/local/bin/docker-compose ] ; then
-      sudo pip install docker-compose
+      #sudo pip install docker-compose
+      brew install docker-compose
    fi
 fi
 }
@@ -55,7 +77,7 @@ fi
 echo '' > $DEST_DIR/password
 ./config/utils/keygen.sh $DEST_DIR
 
-local SPEC_FILE=$(mktemp -p $DEST_DIR spec.XXXXXXXXX)
+local SPEC_FILE=$(mktemp $DEST_DIR/spec.XXXXXXXXX)
 sed "s/CHAIN_NAME/$CHAIN_NAME/g" config/spec/example.spec > $SPEC_FILE
 parity --chain $SPEC_FILE --keys-path $DEST_DIR/ account new --password $DEST_DIR/password  > $DEST_DIR/address.txt
 rm $SPEC_FILE
@@ -185,7 +207,6 @@ create_node_config_instantseal() {
  }
 
 expose_container() {
-
   sed -i "s@container_name: $1@&\n       ports:\n       - 8080:8080\n       - 8180:8180\n       - 8545:8545\n       - 8546:8546\n       - 30303:30303@g" docker-compose.yml
 
 }
