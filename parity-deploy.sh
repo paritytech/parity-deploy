@@ -3,9 +3,9 @@
 
 sed() {
   if [ "$(uname)" = "Darwin" ] ; then
-    gsed $@
+    gsed "$@"
   else
-    command sed $@
+    command sed "$@"
   fi
 }
 
@@ -90,7 +90,7 @@ fi
 echo '' > $DEST_DIR/password
 ./config/utils/keygen.sh $DEST_DIR
 
-local SPEC_FILE=$(mktemp $DEST_DIR/spec.XXXXXXXXX)
+local SPEC_FILE=$(mktemp -p $DEST_DIR spec.XXXXXXXXX)
 sed "s/CHAIN_NAME/$CHAIN_NAME/g" config/spec/example.spec > $SPEC_FILE
 parity --chain $SPEC_FILE --keys-path $DEST_DIR/ account new --password $DEST_DIR/password  > $DEST_DIR/address.txt
 rm $SPEC_FILE
