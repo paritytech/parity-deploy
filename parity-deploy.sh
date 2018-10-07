@@ -3,18 +3,24 @@
 
 sed() {
   if [ "$(uname)" = "Darwin" ] ; then
-    gsed "$@"
+    gsed $@
   else
-    command sed "$@"
+    command sed $@
   fi
 }
+
+if [ "$(uname)" = "Darwin" ] ; then
+  alias sed='gsed'
+fi
 
 mktemp() {
   if [ "$(uname)" = "Darwin" ]; then
     if [ "$1" = "-p" ]; then
-      shift;
+      shift
     fi
-    command mktemp $1/$2
+    if [ $# == 2 ]; then
+      command mktemp $1/$2
+    fi
   else
     command mktemp $@
   fi
@@ -46,17 +52,24 @@ NOTE:
 
 check_packages() {
 
-if [ $(grep -i debian /etc/*-release | wc -l) -gt 0 ] ; then
-   if [ ! -f /usr/local/bin/docker ] ; then
-      #sudo apt-get -y install docker.io python-pip
-      brew install docker.io python-pip
-   fi
+  if [ "$(uname)" = "Darwin" ] ; then
+    if [ ! -f /usr/local/bin/docker ] ; then
+       brew install docker.io python-pip
+    fi
 
-   if [ ! -f /usr/local/bin/docker-compose ] ; then
-      #sudo pip install docker-compose
-      brew install docker-compose
+    if [ ! -f /usr/local/bin/docker-compose ] ; then
+       brew install docker-compose
+    fi
+ else if [ $(grep -i debian /etc/*-release | wc -l) -gt 0 ] ; then
+     if [ ! -f /usr/bin/docker ] ; then
+        sudo apt-get -y install docker.io python-pip
+     fi
+
+     if [ ! -f /usr/local/bin/docker-compose ] ; then
+        sudo pip install docker-compose
+     fi
    fi
-fi
+  fi
 }
 
 
