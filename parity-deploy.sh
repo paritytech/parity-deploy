@@ -1,5 +1,27 @@
 #!/bin/bash
 # Copyright 2017 Parity Technologies (UK) Ltd.
+
+sed() {
+  if [ "$(uname)" = "Darwin" ] ; then
+    gsed "$@"
+  else
+    command sed "$@"
+  fi
+}
+
+mktemp() {
+  if [ "$(uname)" = "Darwin" ]; then
+    if [ "$1" = "-p" ]; then
+      shift
+    fi
+    if [ $# == 2 ]; then
+      command mktemp $1/$2
+    fi
+  else
+    command mktemp $@
+  fi
+}
+
 CHAIN_NAME="parity"
 CHAIN_NODES="1"
 CLIENT="0"
@@ -26,15 +48,24 @@ NOTE:
 
 check_packages() {
 
-if [ $(grep -i debian /etc/*-release | wc -l) -gt 0 ] ; then
-   if [ ! -f /usr/bin/docker ] ; then
-      sudo apt-get -y install docker.io python-pip
-   fi
+  if [ "$(uname)" = "Darwin" ] ; then
+    if [ ! -f /usr/local/bin/docker ] ; then
+       brew install docker.io python-pip
+    fi
 
-   if [ ! -f /usr/local/bin/docker-compose ] ; then
-      sudo pip install docker-compose
+    if [ ! -f /usr/local/bin/docker-compose ] ; then
+       brew install docker-compose
+    fi
+ else if [ $(grep -i debian /etc/*-release | wc -l) -gt 0 ] ; then
+     if [ ! -f /usr/bin/docker ] ; then
+        sudo apt-get -y install docker.io python-pip
+     fi
+
+     if [ ! -f /usr/local/bin/docker-compose ] ; then
+        sudo pip install docker-compose
+     fi
    fi
-fi
+  fi
 }
 
 
@@ -190,7 +221,6 @@ create_node_config_instantseal() {
  }
 
 expose_container() {
-
   sed -i "s@container_name: $1@&\n       ports:\n       - 8080:8080\n       - 8180:8180\n       - 8545:8545\n       - 8546:8546\n       - 30303:30303@g" docker-compose.yml
 
 }
