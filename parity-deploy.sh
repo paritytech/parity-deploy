@@ -9,10 +9,6 @@ sed() {
   fi
 }
 
-if [ "$(uname)" = "Darwin" ] ; then
-  alias sed='gsed'
-fi
-
 mktemp() {
   if [ "$(uname)" = "Darwin" ]; then
     if [ "$1" = "-p" ]; then
