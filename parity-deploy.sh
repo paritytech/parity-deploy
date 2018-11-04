@@ -78,7 +78,6 @@ create_reserved_peers_instantseal() {
 }
 
 build_spec() {
-
 	display_header
 	display_name
 	display_engine
@@ -86,7 +85,6 @@ build_spec() {
 	display_genesis
 	display_accounts
 	display_footer
-
 }
 
 build_docker_config_poa() {
@@ -95,7 +93,11 @@ build_docker_config_poa() {
 	echo "services:" >>docker-compose.yml
 
 	for x in $(seq 1 $CHAIN_NODES); do
-		cat config/docker/authority.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" >>docker-compose.yml
+		if [ "$CHAIN_ENGINE" == "clique" ]; then
+			cat config/docker/clique.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" >>docker-compose.yml
+		else
+			cat config/docker/authority.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" >>docker-compose.yml
+		fi
 		mkdir -p data/$x
 	done
 
@@ -204,7 +206,7 @@ display_engine() {
 	dev)
 		cat config/spec/engine/instantseal
 		;;
-	aura | validatorset | tendermint)
+	aura | validatorset | tendermint | clique)
 		for x in $(seq 1 $CHAIN_NODES); do
 			VALIDATOR=$(cat deployment/$x/address.txt)
 			RESERVED_PEERS="$RESERVED_PEERS $VALIDATOR"
@@ -229,7 +231,21 @@ display_params() {
 
 display_genesis() {
 
-	cat config/spec/genesis/$CHAIN_ENGINE
+	if [ "$CHAIN_ENGINE" == "clique" ]
+	then
+		EXTRA_DATA="0000000000000000000000000000000000000000000000000000000000000000"
+		for x in $(seq 1 $CHAIN_NODES); do
+			VALIDATOR=$(cat deployment/$x/address.txt)
+			EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
+		done
+
+		EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+		EXTRA_DATA=$(echo $EXTRA_DATA | sed -e "s/0x//g")
+		cat config/spec/genesis/$CHAIN_ENGINE | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
+	else
+		cat config/spec/genesis/$CHAIN_ENGINE
+	fi
 
 }
 
@@ -325,7 +341,7 @@ elif [ "$CHAIN_ENGINE" == "dev" ]; then
 	create_node_config_instantseal is_authority
 	build_docker_config_instantseal
 
-elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ -f "$CHAIN_ENGINE" ]; then
+elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ "$CHAIN_ENGINE" == "clique" ] || [ -f "$CHAIN_ENGINE" ]; then
 	if [ $CHAIN_NODES ]; then
 		for x in $(seq $CHAIN_NODES); do
 			create_node_params $x
@@ -336,7 +352,7 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 		build_docker_client
 	fi
 
-	if [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ]; then
+	if [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ "$CHAIN_ENGINE" == "clique" ]; then
 		build_spec >deployment/chain/spec.json
 	else
 		mkdir -p deployment/chain

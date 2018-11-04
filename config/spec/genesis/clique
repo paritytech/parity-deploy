@@ -1,0 +1,11 @@
+	"genesis": {
+		"seal": {
+			"generic": "0x0"
+		},
+		"difficulty": "0x1",
+		"author": "0x0000000000000000000000000000000000000000",
+		"timestamp": "0x00",
+		"parentHash": "0x0000000000000000000000000000000000000000000000000000000000000000",
+		"extraData": "EXTRA_DATA",
+		"gasLimit": "0x47b760"
+	},
