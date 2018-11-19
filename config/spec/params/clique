@@ -1,5 +1,5 @@
     "params": {
-        "maximumExtraDataSize": "0x20",
+        "maximumExtraDataSize": "0xffff",
         "minGasLimit": "0x1388",
         "gasLimitBoundDivisor": "0x400",
         "networkID" : "0x11",
