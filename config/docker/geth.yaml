@@ -1,6 +1,6 @@
    hostNODE_NAME:
        container_name: hostNODE_NAME 
-       image: geth/clique
+       image: ethereum/client-go
        user: root 
        volumes:
        - ./data/NODE_NAME:/root/data
