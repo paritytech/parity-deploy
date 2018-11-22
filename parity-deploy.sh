@@ -111,13 +111,12 @@ build_docker_config_poa() {
 
 build_docker_config_geth() {
 
-	#echo $( echo $RESERVED_PEERS | sed -e 's/\\/\\\\/g; s/\//\\\//g; s/&/\\\&/g')
+	PEER_SET="$(perl -p -e 's/\n/,/g;' deployment/chain/reserved_peers)"
+	PEER_SET=${PEER_SET::-1}
+	PEER_SET=$(echo $PEER_SET | sed -e "s/\"/\\\"/g" | sed -e "s/\./\\\./g"  ) # | sed -e "s/\//\\\//g")
+	echo $PEER_SET
 
-	RESERVED_PEERS= $(perl -p -e 's/\n/,/g' deployment/chain/reserved_peers)
-	RESERVED_PEERS=${RESERVED_PEERS::-1}
-	echo $RESERVED_PEERS
-
-	perl -p -e 's/PEERS/$ENV{RESERVED_PEERS}/g' config/docker/geth.yaml | sed -e "s/NODE_NAME/$1/g" >>docker-compose.yml
+	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" >>docker-compose.yml
 	mkdir -p data/$1
 }
 
