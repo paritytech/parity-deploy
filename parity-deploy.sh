@@ -114,10 +114,19 @@ build_docker_config_geth() {
 	PEER_SET="$(perl -p -e 's/\n/,/g;' deployment/chain/reserved_peers)"
 	PEER_SET=${PEER_SET::-1}
 	PEER_SET=$(echo $PEER_SET | sed -e "s/\"/\\\"/g" | sed -e "s/\./\\\./g"  ) # | sed -e "s/\//\\\//g")
-	echo $PEER_SET
 
-	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" >>docker-compose.yml
+	KEY_INFO=$( helpeth keyGenerate json )
+	ADDRESS=$( echo $KEY_INFO | jq ".address" | sed -e "s/\"//g" | sed -e "s/0x//g" )
+	PRIVATE_KEY=$( echo $KEY_INFO | jq ".privateKey" | sed -e "s/\"//g" | sed -e "s/0x//g" )
+
+	NODE_KEY=$(cat deployment/$1/key.priv)
+
 	mkdir -p data/$1
+
+	echo $1
+	geth account import --datadir data/$1 --password <(echo ' ') <(echo $PRIVATE_KEY)
+
+	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" >>docker-compose.yml
 }
 
 build_docker_config_ethstats() {
@@ -357,15 +366,34 @@ elif [ "$CHAIN_ENGINE" == "dev" ]; then
 	build_docker_config_instantseal
 
 elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ "$CHAIN_ENGINE" == "clique" ] || [ -f "$CHAIN_ENGINE" ]; then
+	if [ -z "$GETH_NODES" ]; then
+	  GETH_NODES=0
+	fi
+
+	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
+	  for x in $(seq $GETH_NODES); do
+		NUM=$(( $CHAIN_NODES + $x ))
+		mkdir -p deployment/$NUM
+		./config/utils/keygen.sh deployment/$NUM
+		create_reserved_peers_poa $NUM
+	  done
+
+	  for x in $(seq $GETH_NODES); do
+		NUM=$(( $CHAIN_NODES + $x ))
+		build_docker_config_geth $NUM
+	  done
+	fi
+
 	if [ $CHAIN_NODES ]; then
 		for x in $(seq $CHAIN_NODES); do
 			create_node_params $x
 			create_reserved_peers_poa $x
 			create_node_config_poa $x
 		done
-		build_docker_config_poa
-		build_docker_client
 	fi
+
+	build_docker_config_poa
+	build_docker_client
 
 	if [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ "$CHAIN_ENGINE" == "clique" ]; then
 		build_spec >deployment/chain/spec.json
@@ -377,20 +405,5 @@ else
 	echo "Could not find spec file: $CHAIN_ENGINE"
 fi
 
-if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
-  for x in $(seq $GETH_NODES); do
-	NUM=$(( $CHAIN_NODES + $x ))
-	echo $NUM
-	mkdir -p deployment/$NUM
-	./config/utils/keygen.sh deployment/$NUM
-	create_reserved_peers_poa $NUM
-  done
-
-  for x in $(seq $GETH_NODES); do
-	NUM=$(( $CHAIN_NODES + $x ))
-	echo $NUM
-	build_docker_config_geth $NUM
-  done
-fi
 
 select_exposed_container
