@@ -109,6 +109,18 @@ build_docker_config_poa() {
 
 }
 
+build_docker_config_geth() {
+
+	#echo $( echo $RESERVED_PEERS | sed -e 's/\\/\\\\/g; s/\//\\\//g; s/&/\\\&/g')
+
+	RESERVED_PEERS= $(perl -p -e 's/\n/,/g' deployment/chain/reserved_peers)
+	RESERVED_PEERS=${RESERVED_PEERS::-1}
+	echo $RESERVED_PEERS
+
+	perl -p -e 's/PEERS/$ENV{RESERVED_PEERS}/g' config/docker/geth.yaml | sed -e "s/NODE_NAME/$1/g" >>docker-compose.yml
+	mkdir -p data/$1
+}
+
 build_docker_config_ethstats() {
 
 	if [ "$ETHSTATS" == "1" ]; then
@@ -267,6 +279,10 @@ while [ "$1" != "" ]; do
 		shift
 		CHAIN_ENGINE=$1
 		;;
+	-gn | --geth-nodes)
+		shift
+		GETH_NODES=$1
+		;;
 	-n | --nodes)
 		shift
 		CHAIN_NODES=$1
@@ -358,10 +374,24 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 		mkdir -p deployment/chain
 		cp $CHAIN_ENGINE deployment/chain/spec.json
 	fi
-
 else
-
 	echo "Could not find spec file: $CHAIN_ENGINE"
+fi
+
+if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
+  for x in $(seq $GETH_NODES); do
+	NUM=$(( $CHAIN_NODES + $x ))
+	echo $NUM
+	mkdir -p deployment/$NUM
+	./config/utils/keygen.sh deployment/$NUM
+	create_reserved_peers_poa $NUM
+  done
+
+  for x in $(seq $GETH_NODES); do
+	NUM=$(( $CHAIN_NODES + $x ))
+	echo $NUM
+	build_docker_config_geth $NUM
+  done
 fi
 
 select_exposed_container
