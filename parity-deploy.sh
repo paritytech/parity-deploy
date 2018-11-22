@@ -123,7 +123,10 @@ build_docker_config_geth() {
 
 	mkdir -p data/$1
 
-	echo $1
+	echo $KEY_INFO
+	echo $NODE_KEY
+	echo $PRIVATE_KEY
+
 	geth account import --datadir data/$1 --password <(echo ' ') <(echo $PRIVATE_KEY)
 
 	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" >>docker-compose.yml
@@ -370,6 +373,16 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 	  GETH_NODES=0
 	fi
 
+	if [ $CHAIN_NODES ]; then
+		for x in $(seq $CHAIN_NODES); do
+			create_node_params $x
+			create_reserved_peers_poa $x
+			create_node_config_poa $x
+		done
+		build_docker_config_poa
+		build_docker_client
+	fi
+
 	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
 	  for x in $(seq $GETH_NODES); do
 		NUM=$(( $CHAIN_NODES + $x ))
@@ -384,16 +397,6 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 	  done
 	fi
 
-	if [ $CHAIN_NODES ]; then
-		for x in $(seq $CHAIN_NODES); do
-			create_node_params $x
-			create_reserved_peers_poa $x
-			create_node_config_poa $x
-		done
-	fi
-
-	build_docker_config_poa
-	build_docker_client
 
 	if [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ "$CHAIN_ENGINE" == "clique" ]; then
 		build_spec >deployment/chain/spec.json

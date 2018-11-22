@@ -6,6 +6,6 @@
        - ./data/NODE_NAME:/root/data
        env:
          peers: "PEERS"
-         etherbase: ""
-         nodekey: ""
+         etherbase: "ETHERBASE"
+         nodekey: "NODEKEY"
        command: --etherbase $etherbase --nodekey $nodekey --rpc --rpcapi \"web3,net,eth,debug\" --rpcvhosts=* --rpcaddr \"0.0.0.0\" --rpccorsdomain \"*\" --vmodule \"miner=12,rpc=12\" --mine --miner.threads 1 --bootnodes "$peers" --port 30303
