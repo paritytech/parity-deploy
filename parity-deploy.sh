@@ -127,6 +127,7 @@ build_docker_config_geth() {
 	echo $NODE_KEY
 	echo $PRIVATE_KEY
 
+	geth init --datadir data/$1 deployment/chain/goerli-geth.json
 	geth account import --datadir data/$1 --password <(echo ' ') <(echo $PRIVATE_KEY)
 
 	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" >>docker-compose.yml
@@ -384,6 +385,9 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 	fi
 
 	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
+	  mkdir -p deployment/chain
+	  cp config/spec/geth/goerli.json deployment/chain/goerli-geth.json
+
 	  for x in $(seq $GETH_NODES); do
 		NUM=$(( $CHAIN_NODES + $x ))
 		mkdir -p deployment/$NUM
