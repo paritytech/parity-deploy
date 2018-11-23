@@ -66,8 +66,9 @@ create_node_params() {
 
 create_reserved_peers_poa() {
 
+	IP_ADDRESS=172.17.0.$(( $1 + 1 ))
 	PUB_KEY=$(cat deployment/$1/key.pub)
-	echo "enode://$PUB_KEY@host$1:30303" >>deployment/chain/reserved_peers
+	echo "enode://$PUB_KEY@$IP_ADDRESS:30303" >>deployment/chain/reserved_peers
 }
 
 create_reserved_peers_instantseal() {
@@ -253,6 +254,21 @@ display_params() {
 
 }
 
+display_genesis_geth() {
+
+	EXTRA_DATA="0000000000000000000000000000000000000000000000000000000000000000"
+	for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
+		VALIDATOR=$(cat deployment/$x/address.txt)
+		EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
+	done
+
+	EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+	EXTRA_DATA=$(echo $EXTRA_DATA | sed -e "s/0x//g")
+	cat config/spec/genesis/goerli.json | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
+
+}
+
 display_genesis() {
 
 	if [ "$CHAIN_ENGINE" == "clique" ]
@@ -386,18 +402,16 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 
 	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
 	  mkdir -p deployment/chain
-	  cp config/spec/geth/goerli.json deployment/chain/goerli-geth.json
+	  display_genesis_geth # > deployment/chain/goerli-geth.json
 
-	  for x in $(seq $GETH_NODES); do
-		NUM=$(( $CHAIN_NODES + $x ))
-		mkdir -p deployment/$NUM
-		./config/utils/keygen.sh deployment/$NUM
-		create_reserved_peers_poa $NUM
+	  for x in $(seq $(( $GETH_NODES + $CHAIN_NODES )) ); do
+		mkdir -p deployment/$x
+		./config/utils/keygen.sh deployment/$x
+		create_reserved_peers_poa $x
 	  done
 
-	  for x in $(seq $GETH_NODES); do
-		NUM=$(( $CHAIN_NODES + $x ))
-		build_docker_config_geth $NUM
+	  for x in $(seq $(( $GETH_NODES + $CHAIN_NODES )) ); do
+		build_docker_config_geth $x
 	  done
 	fi
 
