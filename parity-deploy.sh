@@ -239,7 +239,7 @@ display_engine() {
 		cat config/spec/engine/instantseal
 		;;
 	aura | validatorset | tendermint | clique)
-		for x in $(seq 1 $CHAIN_NODES); do
+		for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
 			VALIDATOR=$(cat deployment/$x/address.txt)
 			RESERVED_PEERS="$RESERVED_PEERS $VALIDATOR"
 			VALIDATORS="$VALIDATORS \"$VALIDATOR\","
@@ -401,35 +401,46 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 		echo "chain nodes: $CHAIN_NODES"
 
 		for x in $(seq $CHAIN_NODES); do
+			echo "x is $x"
 			create_node_params $x
 			create_reserved_peers_poa $x
 			create_node_config_poa $x
 		done
+
+		echo "done chain nodes"
 	fi
+
+	echo "asdf"
 
 	build_docker_config_poa
 	build_docker_client
 
+	echo "qwert"
+
 	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
 	  mkdir -p deployment/chain
 
-	  for x in $(seq $GETH_NODES ); do
+	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
+		echo "x is $x"
 		mkdir -p deployment/$x
 		./config/utils/keygen.sh deployment/$x
 		create_reserved_peers_poa $x
 	  done
 
-	  for x in $(seq $GETH_NODES ); do
+	  echo "foooo"
+
+	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
 		build_node_info_geth $x
 	  done
 
+	  echo "barrr"
+
 	  display_genesis_geth > deployment/chain/goerli.json
 
-	  for x in $(seq $GETH_NODES ); do
+	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
 		build_docker_config_geth $x
 	  done
 	fi
-
 
 	if [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ "$CHAIN_ENGINE" == "clique" ]; then
 		build_spec >deployment/chain/spec.json
