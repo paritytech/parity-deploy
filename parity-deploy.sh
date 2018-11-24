@@ -1,7 +1,7 @@
 #!/bin/bash
 # Copyright 2017 Parity Technologies (UK) Ltd.
 CHAIN_NAME="parity"
-CHAIN_NODES="1"
+CHAIN_NODES="0"
 CLIENT="0"
 DOCKER_INCLUDE="include/docker-compose.yml"
 help() {
@@ -93,6 +93,8 @@ build_docker_config_poa() {
 	echo "version: '2.0'" >docker-compose.yml
 	echo "services:" >>docker-compose.yml
 
+	mkdir -p data
+
 	for x in $(seq 1 $CHAIN_NODES); do
 		if [ "$CHAIN_ENGINE" == "clique" ]; then
 			cat config/docker/clique.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" >>docker-compose.yml
@@ -116,7 +118,7 @@ build_node_info_geth() {
 	PEER_SET="$(perl -p -e 's/\n/,/g;' deployment/chain/reserved_peers)"
 	PEER_SET=${PEER_SET::-1}
 	PEER_SET=$(echo $PEER_SET | sed -e "s/\"/\\\"/g" | sed -e "s/\./\\\./g"  ) # | sed -e "s/\//\\\//g")
-
+	PASSWORD=''
 	KEY_INFO=$( helpeth keyGenerate json )
 	ADDRESS=$( echo $KEY_INFO | jq ".address" | sed -e "s/\"//g" | sed -e "s/0x//g" )
 	PRIVATE_KEY=$( echo $KEY_INFO | jq ".privateKey" | sed -e "s/\"//g" | sed -e "s/0x//g" )
@@ -127,14 +129,15 @@ build_node_info_geth() {
 
 	echo $ADDRESS > deployment/$1/address.txt
 	echo $PRIVATE_KEY > deployment/$1/private.txt
+	echo $PASSWORD > deployment/$1/password 
 
-	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" >>docker-compose.yml
+	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" | sed -e "s|ADDRESS|$ADDRESS|g" | sed -e "s|PASSWORD| |g" >>docker-compose.yml
 }
 
 build_docker_config_geth() {
 
 	geth init --datadir data/$1 deployment/chain/goerli.json
-	geth account import --datadir data/$1 --password <(echo ' ') deployment/$1/private.txt
+	geth account import --datadir data/$1 --password <(echo '') deployment/$1/private.txt
 
 }
 
@@ -262,13 +265,13 @@ display_genesis_geth() {
 
 	EXTRA_DATA="0x0000000000000000000000000000000000000000000000000000000000000000"
 	for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
-		VALIDATOR=$(cat deployment/$x/address.txt)
+		VALIDATOR=$(cat deployment/$x/address.txt | sed -e "s/0x//g" )
 		EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
 	done
 
 	EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
-	EXTRA_DATA=$(echo $EXTRA_DATA | sed -e "s/0x//g")
+	# EXTRA_DATA=$(echo $EXTRA_DATA | sed -e "s/0x//g")
 	cat config/spec/geth/goerli.json | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
 
 }
@@ -394,32 +397,35 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 	  GETH_NODES=0
 	fi
 
-	if [ $CHAIN_NODES ]; then
+	if [ "$CHAIN_NODES" -gt "0" ]; then
+		echo "chain nodes: $CHAIN_NODES"
+
 		for x in $(seq $CHAIN_NODES); do
 			create_node_params $x
 			create_reserved_peers_poa $x
 			create_node_config_poa $x
 		done
-		build_docker_config_poa
-		build_docker_client
 	fi
+
+	build_docker_config_poa
+	build_docker_client
 
 	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
 	  mkdir -p deployment/chain
 
-	  for x in $(seq $(( $GETH_NODES + $CHAIN_NODES )) ); do
+	  for x in $(seq $GETH_NODES ); do
 		mkdir -p deployment/$x
 		./config/utils/keygen.sh deployment/$x
 		create_reserved_peers_poa $x
 	  done
 
-	  for x in $(seq $(( $GETH_NODES + $CHAIN_NODES )) ); do
+	  for x in $(seq $GETH_NODES ); do
 		build_node_info_geth $x
 	  done
 
 	  display_genesis_geth > deployment/chain/goerli.json
 
-	  for x in $(seq $(( $GETH_NODES + $CHAIN_NODES )) ); do
+	  for x in $(seq $GETH_NODES ); do
 		build_docker_config_geth $x
 	  done
 	fi
