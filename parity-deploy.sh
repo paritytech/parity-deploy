@@ -110,7 +110,8 @@ build_docker_config_poa() {
 
 }
 
-build_docker_config_geth() {
+build_node_info_geth() {
+
 
 	PEER_SET="$(perl -p -e 's/\n/,/g;' deployment/chain/reserved_peers)"
 	PEER_SET=${PEER_SET::-1}
@@ -124,14 +125,17 @@ build_docker_config_geth() {
 
 	mkdir -p data/$1
 
-	echo $KEY_INFO
-	echo $NODE_KEY
-	echo $PRIVATE_KEY
-
-	geth init --datadir data/$1 deployment/chain/goerli-geth.json
-	geth account import --datadir data/$1 --password <(echo ' ') <(echo $PRIVATE_KEY)
+	echo $ADDRESS > deployment/$1/address.txt
+	echo $PRIVATE_KEY > deployment/$1/private.txt
 
 	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" >>docker-compose.yml
+}
+
+build_docker_config_geth() {
+
+	geth init --datadir data/$1 deployment/chain/goerli.json
+	geth account import --datadir data/$1 --password <(echo ' ') deployment/$1/private.txt
+
 }
 
 build_docker_config_ethstats() {
@@ -256,7 +260,7 @@ display_params() {
 
 display_genesis_geth() {
 
-	EXTRA_DATA="0000000000000000000000000000000000000000000000000000000000000000"
+	EXTRA_DATA="0x0000000000000000000000000000000000000000000000000000000000000000"
 	for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
 		VALIDATOR=$(cat deployment/$x/address.txt)
 		EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
@@ -265,7 +269,7 @@ display_genesis_geth() {
 	EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
 	EXTRA_DATA=$(echo $EXTRA_DATA | sed -e "s/0x//g")
-	cat config/spec/genesis/goerli.json | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
+	cat config/spec/geth/goerli.json | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
 
 }
 
@@ -402,13 +406,18 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 
 	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
 	  mkdir -p deployment/chain
-	  display_genesis_geth # > deployment/chain/goerli-geth.json
 
 	  for x in $(seq $(( $GETH_NODES + $CHAIN_NODES )) ); do
 		mkdir -p deployment/$x
 		./config/utils/keygen.sh deployment/$x
 		create_reserved_peers_poa $x
 	  done
+
+	  for x in $(seq $(( $GETH_NODES + $CHAIN_NODES )) ); do
+		build_node_info_geth $x
+	  done
+
+	  display_genesis_geth > deployment/chain/goerli.json
 
 	  for x in $(seq $(( $GETH_NODES + $CHAIN_NODES )) ); do
 		build_docker_config_geth $x
