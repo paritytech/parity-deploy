@@ -1,6 +1,6 @@
 #!/bin/bash
 # Copyright 2017 Parity Technologies (UK) Ltd.
-CHAIN_NAME="parity"
+CHAIN_NAME="goerli"
 CHAIN_NODES="0"
 CLIENT="0"
 DOCKER_INCLUDE="include/docker-compose.yml"
@@ -57,7 +57,7 @@ create_node_params() {
 
 	local SPEC_FILE=$(mktemp -p $DEST_DIR spec.XXXXXXXXX)
 	sed "s/CHAIN_NAME/$CHAIN_NAME/g" config/spec/example.spec >$SPEC_FILE
-	echo "creating account: $DEST_DIR"
+	echo "creating account: $DEST_DIR, $SPEC_FILE"
 	parity --chain $SPEC_FILE --keys-path $DEST_DIR/ account new --password $DEST_DIR/password >$DEST_DIR/address.txt
 	rm $SPEC_FILE
 
