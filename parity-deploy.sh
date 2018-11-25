@@ -66,7 +66,7 @@ create_node_params() {
 
 create_reserved_peers_poa() {
 
-	IP_ADDRESS=172.17.0.$(( $1 + 1 ))
+	IP_ADDRESS=172.28.0.$(( $1 + 1 ))
 	PUB_KEY=$(cat deployment/$1/key.pub)
 	echo "enode://$PUB_KEY@$IP_ADDRESS:30303" >>deployment/chain/reserved_peers
 }
@@ -91,6 +91,8 @@ build_spec() {
 build_docker_config_poa() {
 
 	echo "version: '2.0'" >docker-compose.yml
+	display_network >>docker-compose.yml
+
 	echo "services:" >>docker-compose.yml
 
 	mkdir -p data
@@ -182,6 +184,10 @@ build_custom_chain() {
 	./customchain/generate.py "$CUSTOM_CHAIN"
 
 	exit 0
+}
+
+display_network() {
+	cat config/docker/network
 }
 
 display_header() {
@@ -281,7 +287,7 @@ display_genesis() {
 	if [ "$CHAIN_ENGINE" == "clique" ]
 	then
 		EXTRA_DATA="0000000000000000000000000000000000000000000000000000000000000000"
-		for x in $(seq 1 $CHAIN_NODES); do
+		for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
 			VALIDATOR=$(cat deployment/$x/address.txt)
 			EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
 		done

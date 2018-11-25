@@ -6,3 +6,5 @@
        - ./data/NODE_NAME:/root/data
        - ./deployment/NODE_NAME:/root/node
        command: --datadir /root/data --etherbase ETHERBASE --nodekeyhex NODEKEY --rpc --rpcapi \"web3,net,eth,debug\" --rpcvhosts=* --rpccorsdomain \"*\" --vmodule \"miner=12,rpc=12\" --mine --miner.threads 1 --bootnodes "PEERS" --port 30303 --unlock 'ADDRESS' --password /root/node/password
+       networks:
+       - clique
