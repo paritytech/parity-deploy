@@ -3,7 +3,7 @@
        image: parity/clique
        user: root 
        volumes:
-       - ./deployment/chain/spec.json:/home/parity/spec.json:ro
+       - ./deployment/chain/parity.goerli.genesis:/home/parity/spec.json:ro
        - ./deployment/chain/reserved_peers:/home/parity/reserved_peers:ro
        - ./deployment/NODE_NAME/password:/home/parity/password:ro
        - ./deployment/NODE_NAME/authority.toml:/home/parity/authority.toml:ro

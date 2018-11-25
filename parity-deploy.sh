@@ -57,6 +57,7 @@ create_node_params() {
 
 	local SPEC_FILE=$(mktemp -p $DEST_DIR spec.XXXXXXXXX)
 	sed "s/CHAIN_NAME/$CHAIN_NAME/g" config/spec/example.spec >$SPEC_FILE
+	echo "creating account: $DEST_DIR"
 	parity --chain $SPEC_FILE --keys-path $DEST_DIR/ account new --password $DEST_DIR/password >$DEST_DIR/address.txt
 	rm $SPEC_FILE
 
@@ -86,6 +87,10 @@ build_spec() {
 	display_genesis
 	display_accounts
 	display_footer
+}
+
+build_spec_goerli_parity() {
+	cat config/spec/goerli/geth.goerli.genesis | sed -e "EXTRA_DATA"
 }
 
 build_docker_config_poa() {
@@ -138,7 +143,7 @@ build_node_info_geth() {
 
 build_docker_config_geth() {
 
-	geth init --datadir data/$1 deployment/chain/goerli.json
+	geth init --datadir data/$1 deployment/chain/geth.goerli.genesis
 	geth account import --datadir data/$1 --password <(echo '') deployment/$1/private.txt
 
 }
@@ -267,6 +272,19 @@ display_params() {
 
 }
 
+display_genesis_parity() {
+
+	EXTRA_DATA="0x0000000000000000000000000000000000000000000000000000000000000000"
+	for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
+		VALIDATOR=$(cat deployment/$x/address.txt | sed -e "s/0x//g" )
+		EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
+	done
+
+	EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+	cat config/spec/goerli/parity.goerli.genesis | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
+}
+
 display_genesis_geth() {
 
 	EXTRA_DATA="0x0000000000000000000000000000000000000000000000000000000000000000"
@@ -277,9 +295,7 @@ display_genesis_geth() {
 
 	EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
 
-	# EXTRA_DATA=$(echo $EXTRA_DATA | sed -e "s/0x//g")
-	cat config/spec/geth/goerli.json | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
-
+	cat config/spec/goerli/geth.goerli.genesis | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
 }
 
 display_genesis() {
@@ -404,52 +420,40 @@ elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [
 	fi
 
 	if [ "$CHAIN_NODES" -gt "0" ]; then
-		echo "chain nodes: $CHAIN_NODES"
-
 		for x in $(seq $CHAIN_NODES); do
-			echo "x is $x"
 			create_node_params $x
 			create_reserved_peers_poa $x
 			create_node_config_poa $x
 		done
-
-		echo "done chain nodes"
 	fi
-
-	echo "asdf"
 
 	build_docker_config_poa
 	build_docker_client
-
-	echo "qwert"
 
 	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
 	  mkdir -p deployment/chain
 
 	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
-		echo "x is $x"
 		mkdir -p deployment/$x
 		./config/utils/keygen.sh deployment/$x
 		create_reserved_peers_poa $x
 	  done
 
-	  echo "foooo"
-
 	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
 		build_node_info_geth $x
 	  done
 
-	  echo "barrr"
-
-	  display_genesis_geth > deployment/chain/goerli.json
+	  display_genesis_geth > deployment/chain/geth.goerli.genesis
 
 	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
 		build_docker_config_geth $x
 	  done
 	fi
 
-	if [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ "$CHAIN_ENGINE" == "clique" ]; then
+	if [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ]; then
 		build_spec >deployment/chain/spec.json
+	elif [ "$CHAIN_ENGINE" == "clique" ]; then
+		display_genesis_parity > deployment/chain/parity.goerli.genesis
 	else
 		mkdir -p deployment/chain
 		cp $CHAIN_ENGINE deployment/chain/spec.json
