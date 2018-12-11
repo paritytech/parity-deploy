@@ -104,7 +104,8 @@ build_docker_config_poa() {
 
 	for x in $(seq 1 $CHAIN_NODES); do
 		if [ "$CHAIN_ENGINE" == "clique" ]; then
-			cat config/docker/clique.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" >>docker-compose.yml
+			IP_ADDRESS=172.28.0.$(( $x + 1 ))
+			cat config/docker/clique.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" | sed -e "s|IP_ADDRESS|$IP_ADDRESS|g">>docker-compose.yml
 		else
 			cat config/docker/authority.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" >>docker-compose.yml
 		fi
@@ -131,6 +132,8 @@ build_node_info_geth() {
 	PRIVATE_KEY=$( echo $KEY_INFO | jq ".privateKey" | sed -e "s/\"//g" | sed -e "s/0x//g" )
 
 	NODE_KEY=$(cat deployment/$1/key.priv)
+	IP_ADDRESS="172.28.0.$(( $1 + 1 ))"
+	echo $IP_ADDRESS
 
 	mkdir -p data/$1
 
@@ -138,7 +141,7 @@ build_node_info_geth() {
 	echo $PRIVATE_KEY > deployment/$1/private.txt
 	echo $PASSWORD > deployment/$1/password 
 
-	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" | sed -e "s|ADDRESS|$ADDRESS|g" | sed -e "s|PASSWORD| |g" >>docker-compose.yml
+	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" |  sed -e "s|PASSWORD| |g" | sed -e "s|IP_ADDRESS|$IP_ADDRESS|g" | sed -e "s|ADDRESS|$ADDRESS|g" >>docker-compose.yml
 }
 
 build_docker_config_geth() {

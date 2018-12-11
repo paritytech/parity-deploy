@@ -3,7 +3,7 @@
        image: parity/clique
        user: root 
        volumes:
-       - ./deployment/chain/parity.goerli.genesis:/home/parity/spec.json:ro
+       - ./deployment/chain/parity.goerli.genesis:/home/parity/spec.json
        - ./deployment/chain/reserved_peers:/home/parity/reserved_peers:ro
        - ./deployment/NODE_NAME/password:/home/parity/password:ro
        - ./deployment/NODE_NAME/authority.toml:/home/parity/authority.toml:ro
@@ -12,4 +12,5 @@
        - ./data/NODE_NAME:/home/parity/data
        command: --chain /home/parity/spec.json --config /home/parity/authority.toml -d /home/parity/data --force-sealing -l engine=trace
        networks:
-       - clique
+               clique:
+                       ipv4_address: IP_ADDRESS
