@@ -3,7 +3,6 @@
 CHAIN_NAME="goerli"
 CHAIN_NODES="0"
 CLIENT="0"
-DOCKER_INCLUDE="include/docker-compose.yml"
 help() {
 
 	echo "parity-deploy.sh OPTIONS
@@ -34,6 +33,13 @@ check_packages() {
 		if [ ! -f /usr/local/bin/docker-compose ]; then
 			sudo pip install docker-compose
 		fi
+
+		npm install --save git://github.com/jwasinger/helpeth.git\#json
+		if [ ! $? ]; then
+			echo "'npm install --save helpeth' returned a non-zero exit code"
+			exit -1
+		fi
+
 	fi
 }
 
@@ -114,20 +120,17 @@ build_docker_config_poa() {
 
 	build_docker_config_ethstats
 
-	cat $DOCKER_INCLUDE >>docker-compose.yml
-
 	chown -R $USER data/
 
 }
 
 build_node_info_geth() {
-
-
 	PEER_SET="$(perl -p -e 's/\n/,/g;' deployment/chain/reserved_peers)"
 	PEER_SET=${PEER_SET::-1}
 	PEER_SET=$(echo $PEER_SET | sed -e "s/\"/\\\"/g" | sed -e "s/\./\\\./g"  ) # | sed -e "s/\//\\\//g")
 	PASSWORD=''
-	KEY_INFO=$( helpeth keyGenerate json )
+	HELPETH_BIN="$(npm bin)/helpeth"
+	KEY_INFO=$( $HELPETH_BIN keyGenerate json )
 	ADDRESS=$( echo $KEY_INFO | jq ".address" | sed -e "s/\"//g" | sed -e "s/0x//g" )
 	PRIVATE_KEY=$( echo $KEY_INFO | jq ".privateKey" | sed -e "s/\"//g" | sed -e "s/0x//g" )
 
