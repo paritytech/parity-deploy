@@ -62,7 +62,7 @@ create_node_params() {
 	./config/utils/keygen.sh $DEST_DIR
 
 	local SPEC_FILE=$(mktemp -p $DEST_DIR spec.XXXXXXXXX)
-	sed "s/CHAIN_NAME/$CHAIN_NAME/g" config/spec/example.spec >$SPEC_FILE
+	sed "s/CHAIN_NAME/$CHAIN_NAME/g" config/spec/goerli/parity.goerli.genesis >$SPEC_FILE
 	echo "creating account: $DEST_DIR, $SPEC_FILE"
 	parity --chain $SPEC_FILE --keys-path $DEST_DIR/ account new --password $DEST_DIR/password >$DEST_DIR/address.txt
 	rm $SPEC_FILE
