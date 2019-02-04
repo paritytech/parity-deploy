@@ -1,9 +1,8 @@
 #!/bin/bash
 # Copyright 2017 Parity Technologies (UK) Ltd.
-CHAIN_NAME="parity"
-CHAIN_NODES="1"
+CHAIN_NAME="goerli"
+CHAIN_NODES="0"
 CLIENT="0"
-DOCKER_INCLUDE="include/docker-compose.yml"
 help() {
 
 	echo "parity-deploy.sh OPTIONS
@@ -34,6 +33,13 @@ check_packages() {
 		if [ ! -f /usr/local/bin/docker-compose ]; then
 			sudo pip install docker-compose
 		fi
+
+		npm install --save git://github.com/jwasinger/helpeth.git\#json
+		if [ ! $? ]; then
+			echo "'npm install --save helpeth' returned a non-zero exit code"
+			exit -1
+		fi
+
 	fi
 }
 
@@ -56,7 +62,8 @@ create_node_params() {
 	./config/utils/keygen.sh $DEST_DIR
 
 	local SPEC_FILE=$(mktemp -p $DEST_DIR spec.XXXXXXXXX)
-	sed "s/CHAIN_NAME/$CHAIN_NAME/g" config/spec/example.spec >$SPEC_FILE
+	sed "s/CHAIN_NAME/$CHAIN_NAME/g" config/spec/goerli/parity.goerli.genesis >$SPEC_FILE
+	echo "creating account: $DEST_DIR, $SPEC_FILE"
 	parity --chain $SPEC_FILE --keys-path $DEST_DIR/ account new --password $DEST_DIR/password >$DEST_DIR/address.txt
 	rm $SPEC_FILE
 
@@ -66,8 +73,9 @@ create_node_params() {
 
 create_reserved_peers_poa() {
 
+	IP_ADDRESS=172.28.0.$(( $1 + 1 ))
 	PUB_KEY=$(cat deployment/$1/key.pub)
-	echo "enode://$PUB_KEY@host$1:30303" >>deployment/chain/reserved_peers
+	echo "enode://$PUB_KEY@$IP_ADDRESS:30303" >>deployment/chain/reserved_peers
 }
 
 create_reserved_peers_instantseal() {
@@ -78,7 +86,6 @@ create_reserved_peers_instantseal() {
 }
 
 build_spec() {
-
 	display_header
 	display_name
 	display_engine
@@ -86,24 +93,64 @@ build_spec() {
 	display_genesis
 	display_accounts
 	display_footer
+}
 
+build_spec_goerli_parity() {
+	cat config/spec/goerli/geth.goerli.genesis | sed -e "EXTRA_DATA"
 }
 
 build_docker_config_poa() {
 
 	echo "version: '2.0'" >docker-compose.yml
+	display_network >>docker-compose.yml
+
 	echo "services:" >>docker-compose.yml
 
+	mkdir -p data
+
 	for x in $(seq 1 $CHAIN_NODES); do
-		cat config/docker/authority.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" >>docker-compose.yml
+		if [ "$CHAIN_ENGINE" == "clique" ]; then
+			IP_ADDRESS=172.28.0.$(( $x + 1 ))
+			cat config/docker/clique.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" | sed -e "s|IP_ADDRESS|$IP_ADDRESS|g">>docker-compose.yml
+		else
+			cat config/docker/authority.yml | sed -e "s/NODE_NAME/$x/g" | sed -e "s@-d /home/parity/data@-d /home/parity/data $PARITY_OPTIONS@g" >>docker-compose.yml
+		fi
 		mkdir -p data/$x
 	done
 
 	build_docker_config_ethstats
 
-	cat $DOCKER_INCLUDE >>docker-compose.yml
-
 	chown -R $USER data/
+
+}
+
+build_node_info_geth() {
+	PEER_SET="$(perl -p -e 's/\n/,/g;' deployment/chain/reserved_peers)"
+	PEER_SET=${PEER_SET::-1}
+	PEER_SET=$(echo $PEER_SET | sed -e "s/\"/\\\"/g" | sed -e "s/\./\\\./g"  ) # | sed -e "s/\//\\\//g")
+	PASSWORD=''
+	HELPETH_BIN="$(npm bin)/helpeth"
+	KEY_INFO=$( $HELPETH_BIN keyGenerate json )
+	ADDRESS=$( echo $KEY_INFO | jq ".address" | sed -e "s/\"//g" | sed -e "s/0x//g" )
+	PRIVATE_KEY=$( echo $KEY_INFO | jq ".privateKey" | sed -e "s/\"//g" | sed -e "s/0x//g" )
+
+	NODE_KEY=$(cat deployment/$1/key.priv)
+	IP_ADDRESS="172.28.0.$(( $1 + 1 ))"
+	echo $IP_ADDRESS
+
+	mkdir -p data/$1
+
+	echo $ADDRESS > deployment/$1/address.txt
+	echo $PRIVATE_KEY > deployment/$1/private.txt
+	echo $PASSWORD > deployment/$1/password 
+
+	cat config/docker/geth.yaml | sed -e "s|PEERS|$PEER_SET|g" | sed -e "s|NODE_NAME|$1|g" | sed -e "s|ETHERBASE|$ADDRESS|g" | sed -e "s|NODEKEY|$NODE_KEY|g" |  sed -e "s|PASSWORD| |g" | sed -e "s|IP_ADDRESS|$IP_ADDRESS|g" | sed -e "s|ADDRESS|$ADDRESS|g" >>docker-compose.yml
+}
+
+build_docker_config_geth() {
+
+	geth init --datadir data/$1 deployment/chain/geth.goerli.genesis
+	geth account import --datadir data/$1 --password <(echo '') deployment/$1/private.txt
 
 }
 
@@ -155,6 +202,10 @@ build_custom_chain() {
 	./customchain/generate.py "$CUSTOM_CHAIN"
 
 	exit 0
+}
+
+display_network() {
+	cat config/docker/network
 }
 
 display_header() {
@@ -211,8 +262,8 @@ display_engine() {
 	dev)
 		cat config/spec/engine/instantseal
 		;;
-	aura | validatorset | tendermint)
-		for x in $(seq 1 $CHAIN_NODES); do
+	aura | validatorset | tendermint | clique)
+		for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
 			VALIDATOR=$(cat deployment/$x/address.txt)
 			RESERVED_PEERS="$RESERVED_PEERS $VALIDATOR"
 			VALIDATORS="$VALIDATORS \"$VALIDATOR\","
@@ -234,9 +285,49 @@ display_params() {
 
 }
 
+display_genesis_parity() {
+
+	EXTRA_DATA="0x0000000000000000000000000000000000000000000000000000000000000000"
+	for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
+		VALIDATOR=$(cat deployment/$x/address.txt | sed -e "s/0x//g" )
+		EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
+	done
+
+	EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+	cat config/spec/goerli/parity.goerli.genesis | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
+}
+
+display_genesis_geth() {
+
+	EXTRA_DATA="0x0000000000000000000000000000000000000000000000000000000000000000"
+	for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
+		VALIDATOR=$(cat deployment/$x/address.txt | sed -e "s/0x//g" )
+		EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
+	done
+
+	EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+	cat config/spec/goerli/geth.goerli.genesis | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
+}
+
 display_genesis() {
 
-	cat config/spec/genesis/$CHAIN_ENGINE
+	if [ "$CHAIN_ENGINE" == "clique" ]
+	then
+		EXTRA_DATA="0000000000000000000000000000000000000000000000000000000000000000"
+		for x in $(seq 1 $(( $CHAIN_NODES + $GETH_NODES )) ); do
+			VALIDATOR=$(cat deployment/$x/address.txt)
+			EXTRA_DATA="${EXTRA_DATA}${VALIDATOR}"
+		done
+
+		EXTRA_DATA="${EXTRA_DATA}0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000"
+
+		EXTRA_DATA=$(echo $EXTRA_DATA | sed -e "s/0x//g")
+		cat config/spec/genesis/$CHAIN_ENGINE | sed -e "s/EXTRA_DATA/$EXTRA_DATA/g"
+	else
+		cat config/spec/genesis/$CHAIN_ENGINE
+	fi
 
 }
 
@@ -257,6 +348,10 @@ while [ "$1" != "" ]; do
 	-c | --config)
 		shift
 		CHAIN_ENGINE=$1
+		;;
+	-gn | --geth-nodes)
+		shift
+		GETH_NODES=$1
 		;;
 	-n | --nodes)
 		shift
@@ -332,27 +427,53 @@ elif [ "$CHAIN_ENGINE" == "dev" ]; then
 	create_node_config_instantseal is_authority
 	build_docker_config_instantseal
 
-elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ -f "$CHAIN_ENGINE" ]; then
-	if [ $CHAIN_NODES ]; then
+elif [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ] || [ "$CHAIN_ENGINE" == "clique" ] || [ -f "$CHAIN_ENGINE" ]; then
+	if [ -z "$GETH_NODES" ]; then
+	  GETH_NODES=0
+	fi
+
+	if [ "$CHAIN_NODES" -gt "0" ]; then
 		for x in $(seq $CHAIN_NODES); do
 			create_node_params $x
 			create_reserved_peers_poa $x
 			create_node_config_poa $x
 		done
-		build_docker_config_poa
-		build_docker_client
+	fi
+
+	build_docker_config_poa
+	build_docker_client
+
+	if [ "$CHAIN_ENGINE" == "clique" ] && [ "$GETH_NODES" -gt 0 ]; then
+	  mkdir -p deployment/chain
+
+	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
+		mkdir -p deployment/$x
+		./config/utils/keygen.sh deployment/$x
+		create_reserved_peers_poa $x
+	  done
+
+	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
+		build_node_info_geth $x
+	  done
+
+	  display_genesis_geth > deployment/chain/geth.goerli.genesis
+
+	  for x in $(seq $(( $CHAIN_NODES + 1 )) $(( $CHAIN_NODES + $GETH_NODES )) ); do
+		build_docker_config_geth $x
+	  done
 	fi
 
 	if [ "$CHAIN_ENGINE" == "aura" ] || [ "$CHAIN_ENGINE" == "validatorset" ] || [ "$CHAIN_ENGINE" == "tendermint" ]; then
 		build_spec >deployment/chain/spec.json
+	elif [ "$CHAIN_ENGINE" == "clique" ]; then
+		display_genesis_parity > deployment/chain/parity.goerli.genesis
 	else
 		mkdir -p deployment/chain
 		cp $CHAIN_ENGINE deployment/chain/spec.json
 	fi
-
 else
-
 	echo "Could not find spec file: $CHAIN_ENGINE"
 fi
+
 
 select_exposed_container
