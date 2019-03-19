@@ -58,7 +58,7 @@ create_node_params() {
 
 	PASSWORD=$(cat $DEST_DIR/password)
 	PRIV_KEY=$(cat $DEST_DIR/key.priv)
-	./ethstore insert ${PRIV_KEY} $DEST_DIR/password --dir $DEST_DIR/parity >$DEST_DIR/address.txt
+	./ethstore insert ${PRIV_KEY} $DEST_DIR/password --dir $DEST_DIR/$CHAIN_NAME >$DEST_DIR/address.txt
 
 	echo "NETWORK_NAME=$CHAIN_NAME" >.env
 
